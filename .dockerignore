@@ -16,9 +16,9 @@ build
 .coverage
 htmlcov
 .DS_Store
-README.md
 LICENSE
 *.md
+!README.md
 !pyproject.toml
 !uv.lock
 .idea
