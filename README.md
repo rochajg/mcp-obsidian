@@ -156,7 +156,42 @@ To run the HTTP server alongside your Obsidian instance using Docker:
 - Obsidian running in Docker with REST API plugin enabled
 - Both containers on the same Docker network
 
-#### Setup
+#### Using Pre-built Image from GitHub Container Registry
+
+The easiest way to run the server is using the pre-built image:
+
+```bash
+docker run -d \
+  --name mcp-obsidian-http \
+  --network obsidian-network \
+  -p 8000:8000 \
+  -e OBSIDIAN_API_KEY=your_api_key \
+  -e OBSIDIAN_HOST=obsidian \
+  -e OBSIDIAN_PORT=27124 \
+  -e OBSIDIAN_PROTOCOL=https \
+  -e MCP_HTTP_API_KEY=your_secure_api_key \
+  ghcr.io/rochajg/mcp-obsidian:latest
+```
+
+Or using Docker Compose with the pre-built image, update your `docker-compose.yml`:
+
+```yaml
+services:
+  mcp-obsidian-http:
+    image: ghcr.io/rochajg/mcp-obsidian:latest
+    container_name: mcp-obsidian-http
+    # ... rest of configuration
+```
+
+Available tags:
+- `latest` - Latest build from main branch
+- `v*` - Specific version tags (e.g., `v0.2.1`)
+
+#### Building from Source
+
+If you prefer to build the image yourself:
+
+##### Setup
 
 1. **Create environment file:**
 
