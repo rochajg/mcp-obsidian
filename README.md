@@ -146,6 +146,286 @@ curl -X POST http://localhost:8000/tools/call \
   }'
 ```
 
+## Integration Guide
+
+### Integrating with Your Application
+
+The HTTP server provides a REST API that can be easily integrated into any application or service. Here are examples in different programming languages:
+
+#### Python
+
+```python
+import requests
+
+class ObsidianMCPClient:
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+    
+    def list_tools(self):
+        response = requests.get(f"{self.base_url}/tools", headers=self.headers)
+        return response.json()
+    
+    def call_tool(self, tool_name: str, arguments: dict):
+        payload = {
+            "name": tool_name,
+            "arguments": arguments
+        }
+        response = requests.post(
+            f"{self.base_url}/tools/call",
+            headers=self.headers,
+            json=payload
+        )
+        return response.json()
+
+# Usage
+client = ObsidianMCPClient("http://localhost:8000", "your_api_key")
+
+# List all files in vault
+result = client.call_tool("obsidian_list_files_in_vault", {})
+print(result)
+
+# Search for content
+result = client.call_tool("obsidian_simple_search", {"query": "meeting notes"})
+print(result)
+
+# Get file contents
+result = client.call_tool("obsidian_get_file_contents", {"filepath": "notes/daily.md"})
+print(result)
+```
+
+#### JavaScript/TypeScript
+
+```typescript
+class ObsidianMCPClient {
+  private baseUrl: string;
+  private apiKey: string;
+
+  constructor(baseUrl: string, apiKey: string) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+  }
+
+  private getHeaders() {
+    return {
+      'Authorization': `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  async listTools() {
+    const response = await fetch(`${this.baseUrl}/tools`, {
+      headers: this.getHeaders(),
+    });
+    return response.json();
+  }
+
+  async callTool(toolName: string, args: Record<string, any>) {
+    const response = await fetch(`${this.baseUrl}/tools/call`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        name: toolName,
+        arguments: args,
+      }),
+    });
+    return response.json();
+  }
+}
+
+// Usage
+const client = new ObsidianMCPClient('http://localhost:8000', 'your_api_key');
+
+// List all files
+const files = await client.callTool('obsidian_list_files_in_vault', {});
+console.log(files);
+
+// Search
+const searchResults = await client.callTool('obsidian_simple_search', {
+  query: 'project documentation'
+});
+console.log(searchResults);
+```
+
+#### Go
+
+```go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+type ObsidianMCPClient struct {
+    BaseURL string
+    APIKey  string
+    Client  *http.Client
+}
+
+type ToolCallRequest struct {
+    Name      string                 `json:"name"`
+    Arguments map[string]interface{} `json:"arguments"`
+}
+
+type ToolCallResponse struct {
+    Success bool                     `json:"success"`
+    Result  []map[string]interface{} `json:"result,omitempty"`
+    Error   string                   `json:"error,omitempty"`
+}
+
+func NewObsidianMCPClient(baseURL, apiKey string) *ObsidianMCPClient {
+    return &ObsidianMCPClient{
+        BaseURL: baseURL,
+        APIKey:  apiKey,
+        Client:  &http.Client{},
+    }
+}
+
+func (c *ObsidianMCPClient) CallTool(toolName string, args map[string]interface{}) (*ToolCallResponse, error) {
+    payload := ToolCallRequest{
+        Name:      toolName,
+        Arguments: args,
+    }
+    
+    jsonData, err := json.Marshal(payload)
+    if err != nil {
+        return nil, err
+    }
+    
+    req, err := http.NewRequest("POST", c.BaseURL+"/tools/call", bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, err
+    }
+    
+    req.Header.Set("Authorization", "Bearer "+c.APIKey)
+    req.Header.Set("Content-Type", "application/json")
+    
+    resp, err := c.Client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+    
+    var result ToolCallResponse
+    if err := json.Unmarshal(body, &result); err != nil {
+        return nil, err
+    }
+    
+    return &result, nil
+}
+
+func main() {
+    client := NewObsidianMCPClient("http://localhost:8000", "your_api_key")
+    
+    // List files
+    result, err := client.CallTool("obsidian_list_files_in_vault", map[string]interface{}{})
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Success: %v\n", result.Success)
+    fmt.Printf("Result: %v\n", result.Result)
+}
+```
+
+### Common Use Cases
+
+#### Automated Note Creation
+
+```python
+# Create a daily note with a template
+client.call_tool("obsidian_append_content", {
+    "filepath": "Daily/2024-01-06.md",
+    "content": "# Daily Note\n\n## Tasks\n- [ ] Review emails\n- [ ] Team meeting\n\n## Notes\n"
+})
+```
+
+#### Search and Aggregate Information
+
+```python
+# Search for all meeting notes and aggregate
+results = client.call_tool("obsidian_simple_search", {
+    "query": "meeting",
+    "context_length": 200
+})
+
+for item in results['result']:
+    print(f"Found in: {item['text']}")
+```
+
+#### Sync External Data to Obsidian
+
+```python
+# Fetch data from external API and save to Obsidian
+external_data = fetch_from_external_api()
+
+client.call_tool("obsidian_put_content", {
+    "filepath": "External/data-sync.md",
+    "content": f"# Data Sync\n\nLast updated: {datetime.now()}\n\n{external_data}"
+})
+```
+
+#### Webhook Integration
+
+```python
+from flask import Flask, request
+
+app = Flask(__name__)
+obsidian_client = ObsidianMCPClient("http://localhost:8000", "your_api_key")
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    
+    # Save webhook data to Obsidian
+    obsidian_client.call_tool("obsidian_append_content", {
+        "filepath": "Webhooks/log.md",
+        "content": f"\n\n## {datetime.now()}\n{json.dumps(data, indent=2)}"
+    })
+    
+    return {"status": "saved"}
+```
+
+### Authentication
+
+All API endpoints (except `/health` and `/`) require Bearer token authentication. Include your API key in the `Authorization` header:
+
+```
+Authorization: Bearer your_secure_api_key
+```
+
+Set the `MCP_HTTP_API_KEY` environment variable when starting the server. If not set, the server will accept all requests (not recommended for production).
+
+### Error Handling
+
+The API returns standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `401 Unauthorized` - Invalid or missing API key
+- `404 Not Found` - Tool not found
+- `500 Internal Server Error` - Server error
+
+Response format for errors:
+
+```json
+{
+  "success": false,
+  "error": "Error message describing what went wrong"
+}
+```
+
 ### Running with Docker
 
 To run the HTTP server alongside your Obsidian instance using Docker:
