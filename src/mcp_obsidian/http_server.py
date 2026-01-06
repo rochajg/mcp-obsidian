@@ -166,3 +166,9 @@ def run_server(host: str = "0.0.0.0", port: int = 8000):
         logger.warning("No API key configured - server will accept all requests")
     
     uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    host = os.getenv("MCP_HTTP_HOST", "0.0.0.0")
+    port = int(os.getenv("MCP_HTTP_PORT", "8000"))
+    run_server(host=host, port=port)
