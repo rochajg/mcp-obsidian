@@ -146,6 +146,86 @@ curl -X POST http://localhost:8000/tools/call \
   }'
 ```
 
+### Running with Docker
+
+To run the HTTP server alongside your Obsidian instance using Docker:
+
+#### Prerequisites
+
+- Docker and Docker Compose installed
+- Obsidian running in Docker with REST API plugin enabled
+- Both containers on the same Docker network
+
+#### Setup
+
+1. **Create environment file:**
+
+```bash
+cp .env.docker.example .env
+```
+
+2. **Configure environment variables in `.env`:**
+
+```env
+OBSIDIAN_API_KEY=your_api_key_here
+OBSIDIAN_HOST=obsidian  # Container name of your Obsidian instance
+OBSIDIAN_PORT=27124
+OBSIDIAN_PROTOCOL=https
+MCP_HTTP_PORT=8000
+MCP_HTTP_API_KEY=your_secure_api_key
+OBSIDIAN_NETWORK=obsidian-network  # Your existing Docker network
+```
+
+3. **Build and run:**
+
+```bash
+# Build the image
+docker-compose build
+
+# Start the service
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+```
+
+#### Network Configuration
+
+The MCP HTTP server needs to be on the same Docker network as your Obsidian instance. The `docker-compose.yml` is configured to use an external network named `obsidian-network` by default.
+
+If your Obsidian container uses a different network name, update the `OBSIDIAN_NETWORK` variable in your `.env` file.
+
+#### Docker Run (Alternative)
+
+If you prefer to use `docker run` instead of Docker Compose:
+
+```bash
+docker build -t mcp-obsidian-http .
+
+docker run -d \
+  --name mcp-obsidian-http \
+  --network obsidian-network \
+  -p 8000:8000 \
+  -e OBSIDIAN_API_KEY=your_api_key \
+  -e OBSIDIAN_HOST=obsidian \
+  -e OBSIDIAN_PORT=27124 \
+  -e OBSIDIAN_PROTOCOL=https \
+  -e MCP_HTTP_API_KEY=your_secure_api_key \
+  mcp-obsidian-http
+```
+
+#### Health Check
+
+The container includes a health check that monitors the `/health` endpoint. Check container status:
+
+```bash
+docker ps
+docker inspect mcp-obsidian-http | grep -A 10 Health
+```
+
 #### Claude Desktop
 
 On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
