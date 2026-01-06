@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  mcp-obsidian-http:
+    build: .
+    container_name: mcp-obsidian-http
+    ports:
+      - "${MCP_HTTP_PORT:-8000}:8000"
+    environment:
+      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY}
+      - OBSIDIAN_HOST=${OBSIDIAN_HOST:-obsidian}
+      - OBSIDIAN_PORT=${OBSIDIAN_PORT:-27124}
+      - OBSIDIAN_PROTOCOL=${OBSIDIAN_PROTOCOL:-https}
+      - MCP_HTTP_HOST=0.0.0.0
+      - MCP_HTTP_PORT=8000
+      - MCP_HTTP_API_KEY=${MCP_HTTP_API_KEY}
+    restart: unless-stopped
+    networks:
+      - obsidian-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  obsidian-network:
+    external: true
+    name: ${OBSIDIAN_NETWORK:-obsidian-network}
