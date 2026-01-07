@@ -442,17 +442,28 @@ When creating a Custom GPT or configuring an Action in ChatGPT:
    ```
 
 3. **MCP Server URL** (SSE endpoint): 
+   
+   **Option A: With Authentication (Recommended)**
+   ```
+   https://obsidian-api.rochajg.dev:443/sse?api_key=YOUR_MCP_HTTP_API_KEY
+   ```
+   
+   **Option B: Without Authentication (Not recommended for public endpoints)**
    ```
    https://obsidian-api.rochajg.dev:443/sse
    ```
    
-   **Important**: ChatGPT requires the SSE endpoint (`/sse`), not the root URL. This endpoint implements the MCP protocol over Server-Sent Events.
-
-4. **Authentication**: 
-   - Select **Bearer Token** (if using API key authentication)
-   - Token: Your `MCP_HTTP_API_KEY` value
+   **Important**: ChatGPT Custom GPT does not support Bearer Token authentication in the traditional way. You have two options:
    
-   **Note**: If you're not using authentication (not recommended for public endpoints), you can skip this.
+   - **Using Query Parameter (Recommended)**: Include your API key directly in the URL as shown in Option A above. This is the simplest way to secure your endpoint with ChatGPT.
+   
+   - **No Authentication**: Don't set the `MCP_HTTP_API_KEY` environment variable on your server. The server will accept all connections. Only use this if your server is behind other security measures (VPN, IP whitelist, etc.).
+
+4. **Authentication Setting in ChatGPT**: 
+   
+   Select **"None"** (no authentication) in the ChatGPT Custom GPT configuration, since the API key is already in the URL query parameter.
+   
+   If using Option B (no authentication), also select **"None"**.
 
 5. **How It Works**:
    
@@ -550,6 +561,37 @@ server {
 }
 ```
 
+#### Authentication Methods Explained
+
+The server supports **three authentication methods** to accommodate different use cases:
+
+**1. Query Parameter (Recommended for ChatGPT)**
+```
+https://obsidian-api.rochajg.dev:443/sse?api_key=YOUR_KEY
+```
+- ✅ Works with ChatGPT Custom GPT
+- ✅ Simple to configure
+- ⚠️ API key visible in URL (use HTTPS always)
+- Use this when ChatGPT is your primary client
+
+**2. Authorization Header (Recommended for REST API clients)**
+```
+Authorization: Bearer YOUR_KEY
+```
+- ✅ More secure (not visible in logs)
+- ✅ Standard HTTP authentication
+- ❌ Not supported by ChatGPT Custom GPT
+- Use this for custom integrations and scripts
+
+**3. No Authentication**
+```
+No MCP_HTTP_API_KEY environment variable set
+```
+- ✅ Simplest setup
+- ❌ No security
+- ⚠️ Only use behind VPN, firewall, or IP whitelist
+- Not recommended for public internet exposure
+
 #### Testing the Configuration
 
 Before configuring in ChatGPT, test your endpoints:
@@ -558,7 +600,11 @@ Before configuring in ChatGPT, test your endpoints:
 # Test health check (no auth required)
 curl https://obsidian-api.rochajg.dev:443/health
 
-# Test SSE endpoint (MCP protocol - ChatGPT uses this)
+# Test SSE endpoint with query parameter (ChatGPT method)
+curl -H "Accept: text/event-stream" \
+     "https://obsidian-api.rochajg.dev:443/sse?api_key=YOUR_API_KEY"
+
+# Test SSE endpoint with Authorization header (alternative)
 curl -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Accept: text/event-stream" \
      https://obsidian-api.rochajg.dev:443/sse

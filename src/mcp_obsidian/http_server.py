@@ -77,7 +77,19 @@ class ToolListResponse(BaseModel):
     tools: list[dict[str, Any]]
 
 
-def verify_api_key(authorization: Optional[str] = Header(None)) -> bool:
+def verify_api_key(authorization: Optional[str] = Header(None), api_key: Optional[str] = None) -> bool:
+    """Verify API key from Authorization header or query parameter"""
+    expected_token = os.getenv("MCP_HTTP_API_KEY")
+    
+    # If no API key is configured, allow all requests
+    if not expected_token:
+        return True
+    
+    # Check query parameter first (for ChatGPT compatibility)
+    if api_key:
+        return api_key == expected_token
+    
+    # Check Authorization header (for standard REST clients)
     if not authorization:
         return False
     
@@ -86,11 +98,6 @@ def verify_api_key(authorization: Optional[str] = Header(None)) -> bool:
         return False
     
     token = parts[1]
-    expected_token = os.getenv("MCP_HTTP_API_KEY")
-    
-    if not expected_token:
-        return True
-    
     return token == expected_token
 
 
@@ -189,9 +196,19 @@ async def call_tool_mcp(name: str, arguments: Any) -> Sequence[TextContent | Ima
 
 
 @app.get("/sse")
-async def handle_sse(request: Request, authorization: Optional[str] = Header(None)):
-    """SSE endpoint for MCP protocol communication (ChatGPT compatible)"""
-    if not verify_api_key(authorization):
+async def handle_sse(
+    request: Request, 
+    authorization: Optional[str] = Header(None),
+    api_key: Optional[str] = None
+):
+    """SSE endpoint for MCP protocol communication (ChatGPT compatible)
+    
+    Authentication options:
+    1. Query parameter: /sse?api_key=YOUR_KEY (recommended for ChatGPT)
+    2. Authorization header: Authorization: Bearer YOUR_KEY
+    3. No authentication if MCP_HTTP_API_KEY not configured
+    """
+    if not verify_api_key(authorization, api_key):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     logger.info("SSE connection established")
@@ -213,9 +230,19 @@ async def handle_sse(request: Request, authorization: Optional[str] = Header(Non
 
 
 @app.post("/messages")
-async def handle_messages(request: Request, authorization: Optional[str] = Header(None)):
-    """Handle POST messages from MCP client"""
-    if not verify_api_key(authorization):
+async def handle_messages(
+    request: Request, 
+    authorization: Optional[str] = Header(None),
+    api_key: Optional[str] = None
+):
+    """Handle POST messages from MCP client
+    
+    Authentication options:
+    1. Query parameter: /messages?api_key=YOUR_KEY
+    2. Authorization header: Authorization: Bearer YOUR_KEY
+    3. No authentication if MCP_HTTP_API_KEY not configured
+    """
+    if not verify_api_key(authorization, api_key):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     logger.info("Received POST message")
