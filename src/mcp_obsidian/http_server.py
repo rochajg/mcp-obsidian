@@ -233,19 +233,29 @@ async def handle_sse(
 async def handle_messages(
     request: Request, 
     authorization: Optional[str] = Header(None),
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    session_id: Optional[str] = None
 ):
     """Handle POST messages from MCP client
     
-    Authentication options:
-    1. Query parameter: /messages?api_key=YOUR_KEY
-    2. Authorization header: Authorization: Bearer YOUR_KEY
-    3. No authentication if MCP_HTTP_API_KEY not configured
+    Authentication:
+    - If session_id is provided (from established SSE connection), no additional auth needed
+    - Otherwise, requires api_key via query parameter or Authorization header
+    - If MCP_HTTP_API_KEY not configured, all requests are allowed
     """
-    if not verify_api_key(authorization, api_key):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    expected_token = os.getenv("MCP_HTTP_API_KEY")
     
-    logger.info("Received POST message")
+    # If no API key configured, allow all requests
+    if not expected_token:
+        logger.info(f"Received POST message (no auth configured)")
+    # If session_id is provided, the session was already authenticated via GET /sse
+    elif session_id:
+        logger.info(f"Received POST message for session {session_id}")
+    # Otherwise, verify API key
+    elif not verify_api_key(authorization, api_key):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    else:
+        logger.info("Received POST message (authenticated)")
     
     await sse_transport.handle_post_message(
         request.scope,
