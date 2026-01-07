@@ -257,14 +257,13 @@ async def handle_messages(
     else:
         logger.info("Received POST message (authenticated)")
     
+    # handle_post_message is an ASGI app that sends its own response
+    # We should not return anything after calling it
     await sse_transport.handle_post_message(
         request.scope,
         request.receive,
         request._send
     )
-    
-    from starlette.responses import Response
-    return Response()
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8000):
