@@ -1,0 +1,191 @@
+openapi: 3.1.0
+info:
+  title: MCP Obsidian HTTP Server
+  description: |
+    HTTP server exposing MCP tools for Obsidian vault interaction.
+    Use these endpoints to read, search, and manage notes in your Obsidian vault.
+  version: 0.2.1
+servers:
+  - url: https://obsidian-api.rochajg.dev:443
+    description: Production server
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key for authentication (MCP_HTTP_API_KEY)
+
+  schemas:
+    ToolCallRequest:
+      type: object
+      required:
+        - name
+        - arguments
+      properties:
+        name:
+          type: string
+          description: Name of the tool to call
+          example: obsidian_list_files_in_vault
+        arguments:
+          type: object
+          description: Tool-specific arguments
+          example: {}
+
+    ToolCallResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        result:
+          type: array
+          items:
+            type: object
+        error:
+          type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check if the server is running (no authentication required)
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /tools:
+    get:
+      summary: List available tools
+      description: Get a list of all available MCP tools
+      responses:
+        '200':
+          description: List of tools
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        inputSchema:
+                          type: object
+        '401':
+          description: Unauthorized
+
+  /tools/call:
+    post:
+      summary: Call a tool
+      description: Execute a specific MCP tool with arguments
+      operationId: callTool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolCallRequest'
+            examples:
+              listFiles:
+                summary: List all files in vault
+                value:
+                  name: obsidian_list_files_in_vault
+                  arguments: {}
+              getFile:
+                summary: Get file contents
+                value:
+                  name: obsidian_get_file_contents
+                  arguments:
+                    filepath: "Daily/2024-01-06.md"
+              searchSimple:
+                summary: Simple search
+                value:
+                  name: obsidian_simple_search
+                  arguments:
+                    query: "meeting notes"
+              putContent:
+                summary: Create/update file
+                value:
+                  name: obsidian_put_content
+                  arguments:
+                    filepath: "Notes/new-note.md"
+                    content: "# New Note\n\nThis is the content"
+              appendContent:
+                summary: Append to file
+                value:
+                  name: obsidian_append_content
+                  arguments:
+                    filepath: "Daily/today.md"
+                    content: "\n- New task added"
+              patchContent:
+                summary: Patch file section
+                value:
+                  name: obsidian_patch_content
+                  arguments:
+                    filepath: "Projects/project.md"
+                    content: "## Updated Section\n\nNew content here"
+              deleteFile:
+                summary: Delete file
+                value:
+                  name: obsidian_delete_file
+                  arguments:
+                    filepath: "Temp/old-file.md"
+      responses:
+        '200':
+          description: Tool executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCallResponse'
+              examples:
+                listFilesSuccess:
+                  summary: Successful file listing
+                  value:
+                    success: true
+                    result:
+                      - type: text
+                        text: "Files:\n- Notes/meeting.md\n- Projects/todo.md"
+                getFileSuccess:
+                  summary: Successful file read
+                  value:
+                    success: true
+                    result:
+                      - type: text
+                        text: "# Daily Note\n\n## Tasks\n- Task 1"
+                writeSuccess:
+                  summary: Successful file write
+                  value:
+                    success: true
+                    result:
+                      - type: text
+                        text: "Successfully written content to Notes/new-note.md"
+        '400':
+          description: Bad request - invalid tool or arguments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCallResponse'
+              example:
+                success: false
+                error: "Unknown tool: invalid_tool_name"
+        '401':
+          description: Unauthorized - invalid or missing API key
