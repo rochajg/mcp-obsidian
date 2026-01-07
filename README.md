@@ -426,6 +426,157 @@ Response format for errors:
 }
 ```
 
+### Using with ChatGPT and Other LLMs
+
+The HTTP server can be integrated with ChatGPT Custom GPTs and other LLMs that support MCP over HTTP.
+
+#### ChatGPT Custom GPT Configuration
+
+When creating a Custom GPT or configuring an Action in ChatGPT:
+
+1. **Name**: `Obsidian MCP Server` (or your preferred name)
+
+2. **Description**: 
+   ```
+   Connects to your Obsidian vault via MCP server to read, search, and manage notes.
+   ```
+
+3. **MCP Server URL**: 
+   ```
+   https://obsidian-api.rochajg.dev:443
+   ```
+
+4. **Authentication**: 
+   - Select **Bearer Token** (if using API key authentication)
+   - Token: Your `MCP_HTTP_API_KEY` value
+   
+   **Note**: If you're not using authentication (not recommended for public endpoints), you can skip this.
+
+5. **Available Endpoints**:
+   
+   ChatGPT will automatically discover available tools by calling `GET /tools`. You can also manually configure actions:
+
+   **List Tools Action**:
+   ```yaml
+   Method: GET
+   URL: https://obsidian-api.rochajg.dev:443/tools
+   Headers:
+     Authorization: Bearer YOUR_API_KEY
+   ```
+
+   **Call Tool Action**:
+   ```yaml
+   Method: POST
+   URL: https://obsidian-api.rochajg.dev:443/tools/call
+   Headers:
+     Authorization: Bearer YOUR_API_KEY
+     Content-Type: application/json
+   Body:
+     {
+       "name": "tool_name",
+       "arguments": {}
+     }
+   ```
+
+#### OpenAPI Schema (Optional)
+
+For better integration with platforms that support OpenAPI/Swagger, the server provides automatic schema generation via FastAPI:
+
+- **OpenAPI JSON**: `https://obsidian-api.rochajg.dev:443/openapi.json`
+- **Interactive Docs**: `https://obsidian-api.rochajg.dev:443/docs`
+- **ReDoc**: `https://obsidian-api.rochajg.dev:443/redoc`
+
+You can import the OpenAPI schema directly into ChatGPT Actions or other platforms for automatic configuration.
+
+#### Example ChatGPT Instructions
+
+Add these instructions to your Custom GPT to help it understand how to use the tools:
+
+```
+You have access to an Obsidian MCP server that can interact with the user's Obsidian vault.
+
+Available capabilities:
+- List and browse files in the vault
+- Search for content across all notes
+- Read file contents
+- Create and update notes
+- Append content to existing notes
+- Delete files
+
+When the user asks about their notes or wants to manage their Obsidian vault:
+1. Use the appropriate tool based on their request
+2. Always show the results in a clear, formatted way
+3. For search results, summarize what you found and offer to show more details
+4. Before modifying files, confirm the action with the user
+
+Be proactive in suggesting ways to organize or search their notes.
+```
+
+#### Security Considerations for Public Endpoints
+
+If exposing your MCP server publicly (like `https://obsidian-api.rochajg.dev:443`):
+
+1. **Always use HTTPS** (SSL/TLS certificate required)
+2. **Enable strong authentication** with `MCP_HTTP_API_KEY`
+3. **Use a strong, randomly generated API key**:
+   ```bash
+   # Generate a secure API key
+   openssl rand -hex 32
+   ```
+4. **Consider IP whitelisting** at your reverse proxy/firewall level
+5. **Monitor access logs** for suspicious activity
+6. **Rate limiting** - Configure at your reverse proxy (nginx, caddy, etc.)
+
+#### Reverse Proxy Configuration (nginx example)
+
+If using nginx as reverse proxy:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name obsidian-api.rochajg.dev;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=mcp_limit:10m rate=10r/s;
+    limit_req zone=mcp_limit burst=20 nodelay;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # CORS headers (adjust as needed)
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type' always;
+    }
+}
+```
+
+#### Testing the Configuration
+
+Before configuring in ChatGPT, test your endpoint:
+
+```bash
+# Test health check (no auth required)
+curl https://obsidian-api.rochajg.dev:443/health
+
+# Test authentication
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     https://obsidian-api.rochajg.dev:443/tools
+
+# Test tool call
+curl -X POST https://obsidian-api.rochajg.dev:443/tools/call \
+     -H "Authorization: Bearer YOUR_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "obsidian_list_files_in_vault", "arguments": {}}'
+```
+
 ### Running with Docker
 
 To run the HTTP server alongside your Obsidian instance using Docker:
