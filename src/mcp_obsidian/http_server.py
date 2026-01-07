@@ -1,10 +1,15 @@
 import logging
 import os
+import json
+import asyncio
 from typing import Any, Optional
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from sse_starlette import EventSourceResponse
+from mcp.server.sse import SseServerTransport
 
 from . import tools
 
@@ -152,6 +157,77 @@ async def call_tool(
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+# Create MCP server and SSE transport instances globally
+from mcp.server import Server
+from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
+from collections.abc import Sequence
+
+mcp_server = Server("mcp-obsidian")
+sse_transport = SseServerTransport("/messages")
+
+# Register tool handlers with MCP server
+@mcp_server.list_tools()
+async def list_tools_mcp() -> list[Tool]:
+    return [th.get_tool_description() for th in tool_handlers.values()]
+
+@mcp_server.call_tool()
+async def call_tool_mcp(name: str, arguments: Any) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+    if not isinstance(arguments, dict):
+        raise RuntimeError("arguments must be dictionary")
+    
+    tool_handler = get_tool_handler(name)
+    if not tool_handler:
+        raise ValueError(f"Unknown tool: {name}")
+    
+    try:
+        return tool_handler.run_tool(arguments)
+    except Exception as e:
+        logger.error(str(e))
+        raise RuntimeError(f"Error: {str(e)}")
+
+
+@app.get("/sse")
+async def handle_sse(request: Request, authorization: Optional[str] = Header(None)):
+    """SSE endpoint for MCP protocol communication (ChatGPT compatible)"""
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    logger.info("SSE connection established")
+    
+    from starlette.responses import Response
+    
+    async with sse_transport.connect_sse(
+        request.scope,
+        request.receive,
+        request._send
+    ) as streams:
+        await mcp_server.run(
+            streams[0],
+            streams[1],
+            mcp_server.create_initialization_options()
+        )
+    
+    return Response()
+
+
+@app.post("/messages")
+async def handle_messages(request: Request, authorization: Optional[str] = Header(None)):
+    """Handle POST messages from MCP client"""
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    logger.info("Received POST message")
+    
+    await sse_transport.handle_post_message(
+        request.scope,
+        request.receive,
+        request._send
+    )
+    
+    from starlette.responses import Response
+    return Response()
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8000):

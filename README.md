@@ -441,10 +441,12 @@ When creating a Custom GPT or configuring an Action in ChatGPT:
    Connects to your Obsidian vault via MCP server to read, search, and manage notes.
    ```
 
-3. **MCP Server URL**: 
+3. **MCP Server URL** (SSE endpoint): 
    ```
-   https://obsidian-api.rochajg.dev:443
+   https://obsidian-api.rochajg.dev:443/sse
    ```
+   
+   **Important**: ChatGPT requires the SSE endpoint (`/sse`), not the root URL. This endpoint implements the MCP protocol over Server-Sent Events.
 
 4. **Authentication**: 
    - Select **Bearer Token** (if using API key authentication)
@@ -452,31 +454,21 @@ When creating a Custom GPT or configuring an Action in ChatGPT:
    
    **Note**: If you're not using authentication (not recommended for public endpoints), you can skip this.
 
-5. **Available Endpoints**:
+5. **How It Works**:
    
-   ChatGPT will automatically discover available tools by calling `GET /tools`. You can also manually configure actions:
-
-   **List Tools Action**:
-   ```yaml
-   Method: GET
-   URL: https://obsidian-api.rochajg.dev:443/tools
-   Headers:
-     Authorization: Bearer YOUR_API_KEY
-   ```
-
-   **Call Tool Action**:
-   ```yaml
-   Method: POST
-   URL: https://obsidian-api.rochajg.dev:443/tools/call
-   Headers:
-     Authorization: Bearer YOUR_API_KEY
-     Content-Type: application/json
-   Body:
-     {
-       "name": "tool_name",
-       "arguments": {}
-     }
-   ```
+   The server provides two types of endpoints:
+   
+   **A) MCP Protocol (for ChatGPT and MCP clients)**:
+   - `GET /sse` - Server-Sent Events stream for MCP communication
+   - `POST /messages` - Receives client messages (used automatically by MCP protocol)
+   
+   ChatGPT will use these endpoints to communicate via the standard MCP protocol and automatically discover all available tools.
+   
+   **B) REST API (for custom integrations)**:
+   - `GET /tools` - List available tools
+   - `POST /tools/call` - Call a specific tool
+   
+   These REST endpoints are for custom integrations (see Integration Guide section below).
 
 #### OpenAPI Schema (Optional)
 
@@ -560,22 +552,28 @@ server {
 
 #### Testing the Configuration
 
-Before configuring in ChatGPT, test your endpoint:
+Before configuring in ChatGPT, test your endpoints:
 
 ```bash
 # Test health check (no auth required)
 curl https://obsidian-api.rochajg.dev:443/health
 
-# Test authentication
+# Test SSE endpoint (MCP protocol - ChatGPT uses this)
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     -H "Accept: text/event-stream" \
+     https://obsidian-api.rochajg.dev:443/sse
+
+# Test REST API endpoints (for custom integrations)
 curl -H "Authorization: Bearer YOUR_API_KEY" \
      https://obsidian-api.rochajg.dev:443/tools
 
-# Test tool call
 curl -X POST https://obsidian-api.rochajg.dev:443/tools/call \
      -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"name": "obsidian_list_files_in_vault", "arguments": {}}'
 ```
+
+**Note**: The SSE endpoint will maintain an open connection and stream events. This is the endpoint ChatGPT uses for MCP communication.
 
 ### Running with Docker
 
